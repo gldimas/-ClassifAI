@@ -617,7 +617,7 @@ async function launchModel() {
       if (!classNamesRaw) { showError("List your class names first (comma-separated)."); return; }
       customClassNames = classNamesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
 
-      customModel = await tf.loadLayersModel(url + 'model.json');
+      customModel = await tf.loadLayersModel(url);
 
       // sanity check: the class list should match the model's output size
       const outputShape = customModel.outputs[0].shape;

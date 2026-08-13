@@ -1,18 +1,27 @@
-https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0script>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TFJS Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/fjs@4.22.0script>
+</head>
+<body>
+  <h1>Testing...</h1>
 
-<script>
-async function test() {
-  try {
-    const model = await tf.loadLayersModel(
-      "https://gldimas.github.io/App-AI/tfjs_model/model.json"
-    );
+  <script>
+    async function test() {
+      try {
+        const model = await tf.loadLayersModel(
+          'https://gldimas.github.io/App-AI/tfjs_model/model.json'
+        );
 
-    console.log("MODEL LOADED");
-    console.log(model);
-  } catch (e) {
-    console.error(e);
-  }
-}
+        console.log("MODEL LOADED");
+        console.log(model);
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
-test();
-</script>
+    test();
+  </script>
+</body>
+</html>

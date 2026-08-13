@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClassifAI — Test Your Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+<!-- TensorFlow.js + Teachable Machine libraries (official, from Google) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.5.4/dist/speech-commands.min.js"></script>
+
+<style>
+  :root {
+    --ink: #1B1F3B;
+    --butter: #FFD23F;
+    --coral: #FF5D73;
+    --mint: #B8F1D3;
+    --cloud: #FAFAF7;
+    --slate: #6B7280;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background:
+      radial-gradient(circle at 1px 1px, #E4E1D8 1.5px, transparent 0) 0 0 / 22px 22px,
+      #F0EDE3;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .workbench-label {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--butter);
+    padding: 6px 16px;
+    border-radius: 100px;
+    border: 2px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  /* ---------- Phone frame ---------- */
+  .phone {
+    width: 375px;
+    height: 780px;
+    background: var(--ink);
+    border-radius: 52px;
+    padding: 14px;
+    box-shadow:
+      0 30px 60px -20px rgba(27, 31, 59, 0.5),
+      0 0 0 2px #0e1024;
+    position: relative;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: var(--cloud);
+    border-radius: 38px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .notch {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: var(--ink);
+    border-radius: 20px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .notch .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3a3f66;
+  }
+
+  .notch .dot.live {
+    background: var(--coral);
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .status-bar {
+    height: 54px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 26px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .home-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 130px;
+    height: 5px;
+    background: var(--ink);
+    border-radius: 100px;
+    opacity: 0.25;
+    z-index: 20;
+  }
+
+  /* ---------- App content ---------- */
+  .app {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 4px 22px 20px;
+  }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .app-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: var(--coral);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    box-shadow: 2px 2px 0 var(--ink);
+    border: 2px solid var(--ink);
+  }
+
+  .app-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+
+  .app-subtitle {
+    font-size: 11px;
+    color: var(--slate);
+    font-weight: 500;
+  }
+
+  /* ---------- Setup screen ---------- */
+  .setup-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .mode-toggle {
+    display: flex;
+    background: #EFECE2;
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 10px 0;
+    text-align: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .mode-btn.active {
+    background: var(--butter);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+
+  .field-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .field-hint {
+    font-size: 11.5px;
+    color: var(--slate);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  .model-input {
+    width: 100%;
+    padding: 13px 14px;
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #fff;
+    color: var(--ink);
+  }
+
+  .model-input::placeholder { color: #b8b6ac; }
+
+  .btn {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 15px;
+    border-radius: 14px;
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+
+  .btn:active { transform: translateY(2px); box-shadow: none !important; }
+
+  .btn-primary {
+    background: var(--coral);
+    color: var(--cloud);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  .btn-secondary {
+    background: #fff;
+    color: var(--ink);
+    box-shadow: 3px 3px 0 var(--ink);
+    font-size: 13px;
+    padding: 12px;
+  }
+
+  .error-msg {
+    font-size: 12px;
+    color: var(--coral);
+    font-weight: 600;
+    display: none;
+  }
+
+  .spacer { flex: 1; }
+
+  .footnote {
+    font-size: 10.5px;
+    color: var(--slate);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ---------- Running view ---------- */
+  .run-view {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .viewfinder {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: #10132a;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 2px solid var(--ink);
+    flex-shrink: 0;
+  }
+
+  .viewfinder video,
+  .viewfinder canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .viewfinder.audio-mode {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ink);
+  }
+
+  .audio-pulse {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 60px;
+  }
+
+  .audio-pulse .bar {
+    width: 6px;
+    background: var(--coral);
+    border-radius: 4px;
+    animation: eq 1s ease-in-out infinite;
+  }
+  .audio-pulse .bar:nth-child(1) { height: 20%; animation-delay: 0s; }
+  .audio-pulse .bar:nth-child(2) { height: 60%; animation-delay: 0.1s; }
+  .audio-pulse .bar:nth-child(3) { height: 100%; animation-delay: 0.2s; }
+  .audio-pulse .bar:nth-child(4) { height: 45%; animation-delay: 0.3s; }
+  .audio-pulse .bar:nth-child(5) { height: 75%; animation-delay: 0.4s; }
+  .audio-pulse .bar:nth-child(6) { height: 30%; animation-delay: 0.5s; }
+
+  @keyframes eq {
+    0%, 100% { transform: scaleY(0.4); }
+    50% { transform: scaleY(1); }
+  }
+
+  .corner {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border: 3px solid var(--butter);
+  }
+  .corner.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; border-radius: 6px 0 0 0; }
+  .corner.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; border-radius: 0 6px 0 0; }
+  .corner.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; border-radius: 0 0 0 6px; }
+  .corner.br { bottom: 10px; right: 10px; border-left: none; border-top: none; border-radius: 0 0 6px 0; }
+
+  .scan-label {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(27,31,59,0.85);
+    color: var(--mint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 100px;
+  }
+
+  .predictions {
+    margin-top: 16px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pred-row {
+    background: #fff;
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .pred-row.top {
+    background: var(--mint);
+  }
+
+  .pred-top-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .pred-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .pred-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  .pred-track {
+    height: 8px;
+    background: #EFECE2;
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .pred-fill {
+    height: 100%;
+    background: var(--coral);
+    border-radius: 100px;
+    transition: width 0.25s ease;
+  }
+
+  .pred-row.top .pred-fill { background: var(--ink); }
+
+  .run-footer {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .run-footer .btn {
+    flex: 1;
+    font-size: 12px;
+    padding: 11px;
+  }
+</style>
+</head>
+<body>
+
+<div class="workbench-label">🛠️ built with Teachable Machine</div>
+
+<div class="phone">
+  <div class="screen">
+    <div class="notch"><span class="dot" id="notchDot"></span></div>
+    <div class="status-bar">
+      <span id="clockTime">9:41</span>
+      <span>●●●</span>
+    </div>
+
+    <div class="app">
+      <div class="app-header">
+        <div class="app-icon">🔍</div>
+        <div>
+          <div class="app-title">ClassifAI</div>
+          <div class="app-subtitle">your model, live</div>
+        </div>
+      </div>
+
+      <!-- SETUP VIEW -->
+      <div class="setup-view" id="setupView">
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="sourceTeachableBtn" onclick="setSource('teachable')">🤖 Teachable Machine</button>
+          <button class="mode-btn" id="sourceCustomBtn" onclick="setSource('custom')">🧪 Custom Model</button>
+        </div>
+
+        <div class="mode-toggle" id="modeToggleRow">
+          <button class="mode-btn active" id="modeImageBtn" onclick="setMode('image')">📷 Image</button>
+          <button class="mode-btn" id="modeAudioBtn" onclick="setMode('audio')">🎤 Audio</button>
+        </div>
+
+        <div>
+          <div class="field-label" id="modelLinkLabel">Model link</div>
+          <div class="field-hint" id="modelLinkHint">In Teachable Machine, click <strong>Export Model → Upload (shareable link)</strong>, then paste that link here.</div>
+          <input type="text" class="model-input" id="modelUrlInput" placeholder="https://teachablemachine.withgoogle.com/models/XXXXXXXXX/">
+          <div class="error-msg" id="errorMsg">Couldn't load that model — double check the link.</div>
+        </div>
+
+        <div id="classNamesField" style="display:none;">
+          <div class="field-label">Class names</div>
+          <div class="field-hint">Paste the class list your training notebook printed, in that exact order, separated by commas.</div>
+          <input type="text" class="model-input" id="classNamesInput" placeholder="e.g. cats, dogs">
+        </div>
+
+        <button class="btn btn-primary" onclick="launchModel()">Launch App →</button>
+        <button class="btn btn-secondary" onclick="launchDemo()">Try a demo instead (no model needed)</button>
+
+        <div class="spacer"></div>
+        <div class="footnote">Runs entirely in this browser.<br>Nothing is uploaded anywhere.</div>
+      </div>
+
+      <!-- RUNNING VIEW -->
+      <div class="run-view" id="runView">
+        <div class="viewfinder" id="viewfinder">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+          <div class="scan-label">● SCANNING</div>
+        </div>
+
+        <div class="predictions" id="predictions"></div>
+
+        <div class="run-footer">
+          <button class="btn btn-secondary" onclick="resetApp()">← Change model</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<script>
+let mode = "image";
+let modelSource = "teachable";
+let tmModel = null;
+let customModel = null;
+let customClassNames = [];
+let webcam = null;
+let isDemo = false;
+let demoInterval = null;
+const CUSTOM_MODEL_IMG_SIZE = 224;
+
+const DEMO_CLASSES = {
+  image: ["Golden Retriever", "House Cat", "Backpack"],
+  audio: ["Background Noise", "Singer A", "Singer B"]
+};
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeImageBtn').classList.toggle('active', m === 'image');
+  document.getElementById('modeAudioBtn').classList.toggle('active', m === 'audio');
+}
+
+function setSource(src) {
+  modelSource = src;
+  document.getElementById('sourceTeachableBtn').classList.toggle('active', src === 'teachable');
+  document.getElementById('sourceCustomBtn').classList.toggle('active', src === 'custom');
+
+  const classNamesField = document.getElementById('classNamesField');
+  const modeToggleRow = document.getElementById('modeToggleRow');
+  const modelLinkLabel = document.getElementById('modelLinkLabel');
+  const modelLinkHint = document.getElementById('modelLinkHint');
+  const modelUrlInput = document.getElementById('modelUrlInput');
+
+  if (src === 'custom') {
+    setMode('image'); // custom training pipeline in this kit is image-only
+    modeToggleRow.style.display = 'none';
+    classNamesField.style.display = 'block';
+    modelLinkLabel.textContent = 'Model folder URL';
+    modelLinkHint.innerHTML = 'The folder URL where your model.json lives — e.g. a jsDelivr link like https://cdn.jsdelivr.net/gh/you/repo@main/ (recommended) or a GitHub Pages URL.';
+    modelUrlInput.placeholder = 'https://cdn.jsdelivr.net/gh/you/repo@main/';
+  } else {
+    modeToggleRow.style.display = 'flex';
+    classNamesField.style.display = 'none';
+    modelLinkLabel.textContent = 'Model link';
+    modelLinkHint.innerHTML = 'In Teachable Machine, click <strong>Export Model → Upload (shareable link)</strong>, then paste that link here.';
+    modelUrlInput.placeholder = 'https://teachablemachine.withgoogle.com/models/XXXXXXXXX/';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function launchModel() {
+  let url = document.getElementById('modelUrlInput').value.trim();
+  document.getElementById('errorMsg').style.display = 'none';
+
+  if (!url) { showError("Paste a model link first."); return; }
+  if (!url.endsWith('/')) url += '/';
+
+  try {
+    if (modelSource === 'custom') {
+      // ---- Raw custom-trained model (from the training notebook) ----
+      const classNamesRaw = document.getElementById('classNamesInput').value.trim();
+      if (!classNamesRaw) { showError("List your class names first (comma-separated)."); return; }
+      customClassNames = classNamesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+      customModel = await tf.loadLayersModel(url + 'model.json');
+
+      // sanity check: the class list should match the model's output size
+      const outputShape = customModel.outputs[0].shape;
+      const numOutputs = outputShape[outputShape.length - 1];
+      if (numOutputs !== customClassNames.length) {
+        showError(`This model outputs ${numOutputs} classes, but you listed ${customClassNames.length}. Check your class list matches the notebook's printed order.`);
+        customModel = null;
+        return;
+      }
+
+      webcam = new tmImage.Webcam(320, 320, true); // reusing this just as a convenient camera helper
+      await webcam.setup();
+      await webcam.play();
+      const vf = document.getElementById('viewfinder');
+      vf.classList.remove('audio-mode');
+      const existingFeed = vf.querySelector('video, canvas');
+      if (existingFeed) existingFeed.remove();
+      vf.prepend(webcam.canvas);
+      startView();
+      requestAnimationFrame(customImageLoop);
+      isDemo = false;
+      return;
+    }
+
+    // ---- Teachable Machine model ----
+    const modelURL = url + 'model.json';
+    const metadataURL = url + 'metadata.json';
+
+    if (mode === 'image') {
+      tmModel = await tmImage.load(modelURL, metadataURL);
+      webcam = new tmImage.Webcam(320, 320, true);
+      await webcam.setup();
+      await webcam.play();
+      const vf = document.getElementById('viewfinder');
+      vf.classList.remove('audio-mode');
+      const existingFeed = vf.querySelector('video, canvas');
+      if (existingFeed) existingFeed.remove();
+      vf.prepend(webcam.canvas);
+      startView();
+      requestAnimationFrame(imageLoop);
+    } else {
+      // speechCommands.create(fftType, vocabulary, checkpointURL, metadataURL)
+      tmModel = speechCommands.create('BROWSER_FFT', undefined, modelURL, metadataURL);
+      await tmModel.ensureModelLoaded();
+      const vf = document.getElementById('viewfinder');
+      vf.classList.add('audio-mode');
+      vf.innerHTML = `<div class="audio-pulse"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div class="scan-label">● LISTENING</div>`;
+      startView();
+      await tmModel.listen(handleAudioResult, {
+        includeSpectrogram: false,
+        probabilityThreshold: 0.75,
+        invokeCallbackOnNoiseAndUnknown: true,
+        overlapFactor: 0.5
+      });
+    }
+    isDemo = false;
+  } catch (err) {
+    console.error(err);
+    showError("Couldn't load that model: " + (err && err.message ? err.message : err));
+  }
+}
+
+function handleAudioResult(result) {
+  const labels = tmModel.wordLabels();
+  const scores = {};
+  labels.forEach((label, i) => { scores[label] = result.scores[i]; });
+  renderPredictionsFromScores(scores);
+}
+
+function imageLoop() {
+  if (!webcam || isDemo) return;
+  webcam.update();
+  tmModel.predict(webcam.canvas, true).then(preds => {
+    const scores = {};
+    preds.forEach(p => { scores[p.className] = p.probability; });
+    renderPredictionsFromScores(scores);
+  });
+  requestAnimationFrame(imageLoop);
+}
+
+function customImageLoop() {
+  if (!webcam || isDemo) return;
+  webcam.update();
+
+  // Rescaling was baked into the model during training, so this just resizes
+  // and hands over raw 0-255 pixel values -- no manual preprocessing math needed.
+  const prediction = tf.tidy(() => {
+    let img = tf.browser.fromPixels(webcam.canvas);
+    img = tf.image.resizeBilinear(img, [CUSTOM_MODEL_IMG_SIZE, CUSTOM_MODEL_IMG_SIZE]);
+    img = img.toFloat().expandDims(0);
+    return customModel.predict(img);
+  });
+
+  prediction.data().then(data => {
+    const scores = {};
+    customClassNames.forEach((name, i) => { scores[name] = data[i]; });
+    renderPredictionsFromScores(scores);
+    prediction.dispose();
+  });
+
+  requestAnimationFrame(customImageLoop);
+}
+
+function renderPredictionsFromScores(scores) {
+  const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const container = document.getElementById('predictions');
+  container.innerHTML = entries.map(([name, prob], i) => `
+    <div class="pred-row ${i === 0 ? 'top' : ''}">
+      <div class="pred-top-line">
+        <span class="pred-name">${name}</span>
+        <span class="pred-pct">${Math.round(prob * 100)}%</span>
+      </div>
+      <div class="pred-track"><div class="pred-fill" style="width:${Math.round(prob * 100)}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function launchDemo() {
+  isDemo = true;
+  const vf = document.getElementById('viewfinder');
+  if (mode === 'audio') {
+    vf.classList.add('audio-mode');
+    vf.innerHTML = `<div class="audio-pulse"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="scan-label">● LISTENING (DEMO)</div>`;
+  } else {
+    vf.classList.remove('audio-mode');
+    vf.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#5a5f8a;font-family:'JetBrains Mono',monospace;font-size:12px;">[ demo camera feed ]</div>
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="scan-label">● SCANNING (DEMO)</div>`;
+  }
+  startView();
+  runDemoTick();
+  demoInterval = setInterval(runDemoTick, 1400);
+}
+
+function runDemoTick() {
+  const classes = DEMO_CLASSES[mode];
+  let remaining = 100;
+  const scores = {};
+  classes.forEach((c, i) => {
+    if (i === classes.length - 1) { scores[c] = remaining / 100; return; }
+    const v = Math.random() * remaining * 0.7;
+    scores[c] = v / 100;
+    remaining -= v;
+  });
+  renderPredictionsFromScores(scores);
+}
+
+function startView() {
+  document.getElementById('setupView').style.display = 'none';
+  document.getElementById('runView').style.display = 'flex';
+  document.getElementById('notchDot').classList.add('live');
+}
+
+function resetApp() {
+  if (demoInterval) clearInterval(demoInterval);
+  demoInterval = null;
+  isDemo = false;
+  if (webcam) { try { webcam.stop(); } catch(e) {} webcam = null; }
+  if (tmModel && typeof tmModel.stopListening === 'function') {
+    try { tmModel.stopListening(); } catch(e) {}
+  }
+  tmModel = null;
+  if (customModel && typeof customModel.dispose === 'function') {
+    try { customModel.dispose(); } catch(e) {}
+  }
+  customModel = null;
+  customClassNames = [];
+  document.getElementById('predictions').innerHTML = '';
+  document.getElementById('setupView').style.display = 'flex';
+  document.getElementById('runView').style.display = 'none';
+  document.getElementById('notchDot').classList.remove('live');
+}
+
+function updateClock() {
+  const now = new Date();
+  let h = now.getHours() % 12; if (h === 0) h = 12;
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clockTime').textContent = `${h}:${m}`;
+}
+updateClock();
+setInterval(updateClock, 30000);
+</script>
+
+</body>
+</html>

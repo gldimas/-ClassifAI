@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0script>
+</head>
+<body>
+
+<script>
+async function test() {
+    const model =
+      await tf.loadLayersModel(
+        "https://gldimas.github.io/APP-AI/tfjs_model/model.json"
+      );
+
+    console.log("Loaded!");
+    console.log(model);
+
+    console.log("Inputs:", model.inputs);
+    console.log("Outputs:", model.outputs);
+}
+
+test();
+</script>
+
+</body>
+</html>

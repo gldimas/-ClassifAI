@@ -20,7 +20,6 @@
     --cloud: #FAFAF7;
     --slate: #6B7280;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -55,8 +54,9 @@
 
   /* ---------- Phone frame ---------- */
   .phone {
-    width: 375px;
-    height: 780px;
+    width: min(375px, calc(100vw - 40px));
+    aspect-ratio: 375 / 780;
+    height: auto;
     background: var(--ink);
     border-radius: 52px;
     padding: 14px;
@@ -373,6 +373,28 @@
     border-radius: 100px;
   }
 
+  .camera-switch-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid var(--ink);
+    background: rgba(255,255,255,0.9);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 10;
+  }
+
+  .camera-switch-btn:active {
+    transform: scale(0.92);
+  }
+
   .predictions {
     margin-top: 16px;
     flex: 1;
@@ -441,6 +463,12 @@
     font-size: 12px;
     padding: 11px;
   }
+
+  @media (max-width: 420px) {
+    body { padding: 20px 12px; }
+    .phone { width: min(375px, calc(100vw - 24px)); }
+    .workbench-label { font-size: 11px; padding: 5px 12px; top: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -504,6 +532,7 @@
           <div class="corner bl"></div>
           <div class="corner br"></div>
           <div class="scan-label">● SCANNING</div>
+          <button class="camera-switch-btn" id="cameraSwitchBtn" onclick="switchCamera()" style="display:none;" title="Switch camera">🔄</button>
         </div>
 
         <div class="predictions" id="predictions"></div>
@@ -525,6 +554,7 @@ let tmModel = null;
 let customModel = null;
 let customClassNames = [];
 let webcam = null;
+let currentFacingMode = "user"; // "user" = front/selfie camera, "environment" = back camera
 let isDemo = false;
 let demoInterval = null;
 const CUSTOM_MODEL_IMG_SIZE = 224;
@@ -598,13 +628,15 @@ async function launchModel() {
         return;
       }
 
+      currentFacingMode = "user";
       webcam = new tmImage.Webcam(320, 320, true); // reusing this just as a convenient camera helper
-      await webcam.setup();
+      await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
       const vf = document.getElementById('viewfinder');
       vf.classList.remove('audio-mode');
-      const existingFeed = vf.querySelector('video, canvas');
-      if (existingFeed) existingFeed.remove();
+      vf.innerHTML = `<div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div class="scan-label">● SCANNING</div>
+        <button class="camera-switch-btn" id="cameraSwitchBtn" onclick="switchCamera()" title="Switch camera">🔄</button>`;
       vf.prepend(webcam.canvas);
       startView();
       requestAnimationFrame(customImageLoop);
@@ -618,13 +650,15 @@ async function launchModel() {
 
     if (mode === 'image') {
       tmModel = await tmImage.load(modelURL, metadataURL);
+      currentFacingMode = "user";
       webcam = new tmImage.Webcam(320, 320, true);
-      await webcam.setup();
+      await webcam.setup({ facingMode: currentFacingMode });
       await webcam.play();
       const vf = document.getElementById('viewfinder');
       vf.classList.remove('audio-mode');
-      const existingFeed = vf.querySelector('video, canvas');
-      if (existingFeed) existingFeed.remove();
+      vf.innerHTML = `<div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div class="scan-label">● SCANNING</div>
+        <button class="camera-switch-btn" id="cameraSwitchBtn" onclick="switchCamera()" title="Switch camera">🔄</button>`;
       vf.prepend(webcam.canvas);
       startView();
       requestAnimationFrame(imageLoop);
@@ -657,6 +691,54 @@ function handleAudioResult(result) {
   const scores = {};
   labels.forEach((label, i) => { scores[label] = result.scores[i]; });
   renderPredictionsFromScores(scores);
+}
+
+async function switchCamera() {
+  if (!webcam) return;
+  const btn = document.getElementById('cameraSwitchBtn');
+  btn.disabled = true;
+
+  const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+  const newFlip = newFacingMode === 'user'; // mirror the front/selfie camera, not the back one
+
+  const oldWebcam = webcam;
+  webcam = null; // prediction loop sees this and pauses itself while we swap
+
+  try {
+    oldWebcam.stop();
+    const vf = document.getElementById('viewfinder');
+    const oldFeed = vf.querySelector('video, canvas');
+    if (oldFeed) oldFeed.remove();
+
+    const newWebcam = new tmImage.Webcam(320, 320, newFlip);
+    await newWebcam.setup({ facingMode: newFacingMode });
+    await newWebcam.play();
+
+    currentFacingMode = newFacingMode;
+    webcam = newWebcam;
+    vf.prepend(webcam.canvas);
+
+    if (modelSource === 'custom') {
+      requestAnimationFrame(customImageLoop);
+    } else {
+      requestAnimationFrame(imageLoop);
+    }
+  } catch (err) {
+    console.error(err);
+    // couldn't switch (e.g. this device only has one camera) -- go back to the previous one
+    webcam = oldWebcam;
+    try {
+      await webcam.play();
+      document.getElementById('viewfinder').prepend(webcam.canvas);
+      if (modelSource === 'custom') {
+        requestAnimationFrame(customImageLoop);
+      } else {
+        requestAnimationFrame(imageLoop);
+      }
+    } catch (e2) { console.error(e2); }
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function imageLoop() {
@@ -759,6 +841,9 @@ function resetApp() {
   }
   customModel = null;
   customClassNames = [];
+  currentFacingMode = "user";
+  const switchBtn = document.getElementById('cameraSwitchBtn');
+  if (switchBtn) switchBtn.style.display = 'none';
   document.getElementById('predictions').innerHTML = '';
   document.getElementById('setupView').style.display = 'flex';
   document.getElementById('runView').style.display = 'none';
